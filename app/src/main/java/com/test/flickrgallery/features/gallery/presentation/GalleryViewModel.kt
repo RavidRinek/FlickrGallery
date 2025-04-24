@@ -34,6 +34,7 @@ class GalleryViewModel @Inject constructor(
     private var currentPage = 1
     private var isLoading = false
     private var hasMoreData = true
+    private var allowNotifyOfReachedEndList = true
 
     init {
         val pollingEnabled = galleryPrefs.getBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED)
@@ -98,10 +99,17 @@ class GalleryViewModel @Inject constructor(
                         (state.uiState as? UiStates.Data)?.galleryPhotos?.photos ?: emptyList()
                     val thresholdReached = lastVisible >= currentPhotos.size - 5
 
-                    if (!thresholdReached || isLoading || !hasMoreData) return@intent
+                    if (!thresholdReached || isLoading || !hasMoreData) {
+                        if (allowNotifyOfReachedEndList && thresholdReached && !hasMoreData) {
+                            allowNotifyOfReachedEndList = false
+                            postSideEffect(SideEffect.ShowToast("You've reached the end of the list"))
+                        }
+                        return@intent
+                    }
 
                     isLoading = true
                     val query = _searchQuery.value
+                    reduce { state.copy(appendingLoading = true) }
                     getRecentPhotosUseCase(currentPage, query)
                         .onSuccess {
                             updatePhotos(currentPhotos, it)
@@ -139,9 +147,8 @@ class GalleryViewModel @Inject constructor(
 
                         reduce {
                             state.copy(
-                                autoPollEnabled = if (query.isEmpty())
-                                    false
-                                else state.autoPollEnabled
+                                autoPollEnabled = if (query.isEmpty()) false else state.autoPollEnabled,
+                                appendingLoading = true
                             )
                         }
                         val result = getRecentPhotosUseCase(1, query)
@@ -152,13 +159,20 @@ class GalleryViewModel @Inject constructor(
                     it.onSuccess { res ->
                         currentPage++
                         hasMoreData = res.photos.size >= res.perpage
+                        allowNotifyOfReachedEndList = true
                         galleryPrefs.putString(GalleryPrefs.K_LAST_SEARCH_TERM, _searchQuery.value)
                         res.photos.firstOrNull()?.id?.let { id ->
                             galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
                         }
-                        reduce { state.copy(uiState = UiStates.Data(res)) }
+                        reduce {
+                            state.copy(
+                                uiState = UiStates.Data(res),
+                                appendingLoading = false
+                            )
+                        }
                         postSideEffect(SideEffect.ScrollToTop)
                     }.onFailure {
+                        reduce { state.copy(appendingLoading = false) }
                         postSideEffect(SideEffect.ShowToast(it.message ?: "Something went wrong"))
                     }
                 }
@@ -186,10 +200,16 @@ class GalleryViewModel @Inject constructor(
             val updatedGalleryPhotos = res.copy(photos = updatedPhotos)
             hasMoreData = res.photos.size >= res.perpage
             isLoading = false
+            allowNotifyOfReachedEndList = true
             res.photos.firstOrNull()?.id?.let { id ->
                 galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
             }
-            reduce { state.copy(uiState = UiStates.Data(updatedGalleryPhotos)) }
+            reduce {
+                state.copy(
+                    uiState = UiStates.Data(updatedGalleryPhotos),
+                    appendingLoading = false
+                )
+            }
             if (currentPage == 1) {
                 postSideEffect(SideEffect.ScrollToTop)
             }
@@ -206,7 +226,8 @@ class GalleryViewModel @Inject constructor(
     data class State(
         val uiState: UiStates = UiStates.Loading,
         val query: String = "",
-        val autoPollEnabled: Boolean = false
+        val autoPollEnabled: Boolean = false,
+        val appendingLoading: Boolean = false,
     )
 
     sealed class SideEffect {

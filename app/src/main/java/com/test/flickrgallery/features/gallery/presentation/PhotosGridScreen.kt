@@ -2,6 +2,7 @@ package com.test.flickrgallery.features.gallery.presentation
 
 import TopBarWithSearchMenu
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
@@ -11,6 +12,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.test.flickrgallery.features.gallery.domain.models.Photo
 import com.test.flickrgallery.features.gallery.presentation.components.PhotoGridLazyColumn
 import com.test.flickrgallery.features.utilities.EmptyScreenState
+import com.test.flickrgallery.features.utilities.LoadingScreen
 import com.test.flickrgallery.features.utilities.LoadingStateItemsColumn
 import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.compose.collectAsState
@@ -88,24 +90,29 @@ fun PhotosGridScreen(
             }
 
             is GalleryViewModel.UiStates.Data -> {
-                PhotoGridLazyColumn(
-                    photos = uiState.galleryPhotos.photos,
-                    gridState = gridState,
-                    onPhotoClick = { photo ->
-                        viewModel.sendAction(
-                            GalleryViewModel
-                                .Action
-                                .PhotoClicked(photo)
-                        )
-                    },
-                    onScrolledToBottom = { lastVisible ->
-                        viewModel.sendAction(
-                            GalleryViewModel
-                                .Action
-                                .Scrolled(lastVisible)
-                        )
+                Box {
+                    PhotoGridLazyColumn(
+                        photos = uiState.galleryPhotos.photos,
+                        gridState = gridState,
+                        onPhotoClick = { photo ->
+                            viewModel.sendAction(
+                                GalleryViewModel
+                                    .Action
+                                    .PhotoClicked(photo)
+                            )
+                        },
+                        onScrolledToBottom = { lastVisible ->
+                            viewModel.sendAction(
+                                GalleryViewModel
+                                    .Action
+                                    .Scrolled(lastVisible)
+                            )
+                        }
+                    )
+                    if (state.appendingLoading) {
+                        LoadingScreen()
                     }
-                )
+                }
             }
         }
     }
