@@ -10,6 +10,7 @@ import com.test.flickrgallery.features.gallery.utlities.SharedPhotosStream
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -39,22 +40,10 @@ class GalleryViewModel @Inject constructor(
     init {
         val pollingEnabled = galleryPrefs.getBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED)
         val searchTerm = galleryPrefs.getString(GalleryPrefs.K_LAST_SEARCH_TERM)
-
         _searchQuery.value = searchTerm
         observeSearchQueryChanges()
         collectNewPhotosFromWorker()
         setMenuUiState(pollingEnabled, searchTerm)
-    }
-
-    private fun setMenuUiState(pollingEnabled: Boolean, searchTerm: String) {
-        intent {
-            reduce {
-                state.copy(
-                    autoPollEnabled = pollingEnabled,
-                    query = searchTerm
-                )
-            }
-        }
     }
 
     fun sendAction(action: Action) {
@@ -66,63 +55,98 @@ class GalleryViewModel @Inject constructor(
             }
 
             is Action.SearchQueryChanged -> {
-                intent { reduce { state.copy(query = action.query) } }
-                _searchQuery.value = action.query
+                updateQuery(action.query)
             }
 
             Action.ClearSearchClicked -> {
-                intent { reduce { state.copy(query = "") } }
-                _searchQuery.value = ""
+                if (_searchQuery.value.isBlank()) {
+                    intent {
+                        postSideEffect(SideEffect.ShowToast("Search query already cleared"))
+                    }
+                } else {
+                    updateQuery("")
+                }
             }
 
             Action.TogglePollingClicked -> {
-                if (_searchQuery.value == "") {
-                    intent {
-                        postSideEffect(SideEffect.ShowToast("Cant start auto polling without search query"))
-                    }
-                } else {
-                    galleryPrefs.getBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED).let { enabled ->
-                        galleryPrefs.putBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED, !enabled)
-                        recentPhotosPollingManager.enablePolling(!enabled)
-                        intent {
-                            reduce { state.copy(autoPollEnabled = !enabled) }
-                            postSideEffect(SideEffect.ShowToast("Auto polling enabled: ${!enabled}"))
-                        }
-                    }
-                }
+                togglePolling()
             }
 
-            is Action.Scrolled -> {
-                intent {
-                    val lastVisible = action.lastVisibleItemPosition
-                    val currentPhotos =
-                        (state.uiState as? UiStates.Data)?.galleryPhotos?.photos ?: emptyList()
-                    val thresholdReached = lastVisible >= currentPhotos.size - 5
-
-                    if (!thresholdReached || isLoading || !hasMoreData) {
-                        if (allowNotifyOfReachedEndList && thresholdReached && !hasMoreData) {
-                            allowNotifyOfReachedEndList = false
-                            postSideEffect(SideEffect.ShowToast("You've reached the end of the list"))
-                        }
-                        return@intent
-                    }
-
-                    isLoading = true
-                    val query = _searchQuery.value
-                    reduce { state.copy(appendingLoading = true) }
-                    getRecentPhotosUseCase(currentPage, query)
-                        .onSuccess {
-                            updatePhotos(currentPhotos, it)
-                        }.onFailure {
-                            isLoading = false
-                            postSideEffect(
-                                SideEffect.ShowToast(
-                                    it.message ?: "Something went wrong"
-                                )
-                            )
-                        }
-                }
+            is Action.OnScrolling -> {
+                onScrolled(action.lastVisibleItemPosition)
             }
+        }
+    }
+
+    private fun updateQuery(query: String) {
+        intent {
+            reduce { state.copy(query = query) }
+            _searchQuery.value = query
+        }
+    }
+
+    private fun togglePolling() {
+        intent {
+            if (_searchQuery.value.isBlank()) {
+                postSideEffect(SideEffect.ShowToast("Cant start auto polling without search query"))
+            } else {
+                val enabled = galleryPrefs.getBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED)
+                galleryPrefs.putBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED, !enabled)
+                recentPhotosPollingManager.enablePolling(!enabled)
+                reduce { state.copy(autoPollEnabled = !enabled) }
+                postSideEffect(SideEffect.ShowToast("Auto polling enabled: ${!enabled}"))
+            }
+        }
+    }
+
+    private fun onScrolled(lastVisible: Int) {
+        intent {
+            val currentPhotos =
+                (state.uiState as? UiStates.Data)?.galleryPhotos?.photos ?: return@intent
+            val thresholdReached = lastVisible >= currentPhotos.size - 5
+
+            if (!thresholdReached || isLoading || !hasMoreData) {
+                if (allowNotifyOfReachedEndList && thresholdReached && !hasMoreData) {
+                    allowNotifyOfReachedEndList = false
+                    postSideEffect(SideEffect.ShowToast("You've reached the end of the list"))
+                }
+                return@intent
+            }
+
+            isLoading = true
+            reduce { state.copy(appendingLoading = true) }
+            getRecentPhotosUseCase(currentPage, _searchQuery.value)
+                .onSuccess {
+                    val updatedPhotos = currentPhotos + it.photos
+                    val updatedGalleryPhotos = it.copy(photos = updatedPhotos)
+                    updatePhotos(updatedGalleryPhotos, it.photos.size)
+                }
+                .onFailure {
+                    isLoading = false
+                    reduce { state.copy(appendingLoading = false) }
+                    postSideEffect(SideEffect.ShowToast(it.message ?: "Something went wrong"))
+                }
+        }
+    }
+
+    private fun updatePhotos(updatedGalleryPhotos: GalleryPhotos, newPhotosSize: Int) {
+        intent {
+            hasMoreData = newPhotosSize >= updatedGalleryPhotos.perpage
+            isLoading = false
+            allowNotifyOfReachedEndList = true
+            updatedGalleryPhotos.photos.firstOrNull()?.id?.let { id ->
+                galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
+            }
+            reduce {
+                state.copy(
+                    uiState = UiStates.Data(updatedGalleryPhotos),
+                    appendingLoading = false
+                )
+            }
+            if (currentPage == 1) {
+                postSideEffect(SideEffect.ScrollToTop)
+            }
+            currentPage++
         }
     }
 
@@ -138,16 +162,16 @@ class GalleryViewModel @Inject constructor(
                     isLoading = false
                 }
 //                .filter { it.length >= 2 || it.isEmpty() }
-                .flatMapLatest { query ->
+                .flatMapLatest { query -> //flatMapLatest cancels any ongoing API request if a new one comes in
                     flow {
-                        if (query.isEmpty()) {
+                        if (state.autoPollEnabled && state.uiState is UiStates.Data) {
                             galleryPrefs.putBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED, false)
                             recentPhotosPollingManager.enablePolling(false)
+                            postSideEffect(SideEffect.ShowToast("Auto polling enabled: false"))
                         }
-
                         reduce {
                             state.copy(
-                                autoPollEnabled = if (query.isEmpty()) false else state.autoPollEnabled,
+                                autoPollEnabled = false,
                                 appendingLoading = true
                             )
                         }
@@ -157,20 +181,11 @@ class GalleryViewModel @Inject constructor(
                 }
                 .collect {
                     it.onSuccess { res ->
-                        currentPage++
-                        hasMoreData = res.photos.size >= res.perpage
-                        allowNotifyOfReachedEndList = true
                         galleryPrefs.putString(GalleryPrefs.K_LAST_SEARCH_TERM, _searchQuery.value)
-                        res.photos.firstOrNull()?.id?.let { id ->
-                            galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
+                        updatePhotos(res, res.photos.size)
+                        if (res.photos.isEmpty()) {
+                            postSideEffect(SideEffect.ShowToast("No matching photos were found."))
                         }
-                        reduce {
-                            state.copy(
-                                uiState = UiStates.Data(res),
-                                appendingLoading = false
-                            )
-                        }
-                        postSideEffect(SideEffect.ScrollToTop)
                     }.onFailure {
                         reduce { state.copy(appendingLoading = false) }
                         postSideEffect(SideEffect.ShowToast(it.message ?: "Something went wrong"))
@@ -182,38 +197,20 @@ class GalleryViewModel @Inject constructor(
     private fun collectNewPhotosFromWorker() {
         intent {
             sharedPhotosStream.newGalleryPhotos.collect { res ->
-                if (res != null) {
-                    updatePhotos(
-                        currentPhotos = (state.uiState as? UiStates.Data)
-                            ?.galleryPhotos
-                            ?.photos ?: emptyList(),
-                        res = res
-                    )
-                }
+                res?.let { updatePhotos(it, it.photos.size) }
             }
         }
     }
 
-    private fun updatePhotos(currentPhotos: List<Photo>, res: GalleryPhotos?) {
+    private fun setMenuUiState(pollingEnabled: Boolean, searchTerm: String) {
         intent {
-            val updatedPhotos = currentPhotos + res!!.photos
-            val updatedGalleryPhotos = res.copy(photos = updatedPhotos)
-            hasMoreData = res.photos.size >= res.perpage
-            isLoading = false
-            allowNotifyOfReachedEndList = true
-            res.photos.firstOrNull()?.id?.let { id ->
-                galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
-            }
+            delay(500)
             reduce {
                 state.copy(
-                    uiState = UiStates.Data(updatedGalleryPhotos),
-                    appendingLoading = false
+                    autoPollEnabled = pollingEnabled,
+                    query = searchTerm
                 )
             }
-            if (currentPage == 1) {
-                postSideEffect(SideEffect.ScrollToTop)
-            }
-            currentPage++
         }
     }
 
@@ -241,6 +238,6 @@ class GalleryViewModel @Inject constructor(
         data class SearchQueryChanged(val query: String) : Action()
         data object ClearSearchClicked : Action()
         data object TogglePollingClicked : Action()
-        data class Scrolled(val lastVisibleItemPosition: Int) : Action()
+        data class OnScrolling(val lastVisibleItemPosition: Int) : Action()
     }
 }

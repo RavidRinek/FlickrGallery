@@ -105,7 +105,7 @@ fun PhotosGridScreen(
                             viewModel.sendAction(
                                 GalleryViewModel
                                     .Action
-                                    .Scrolled(lastVisible)
+                                    .OnScrolling(lastVisible)
                             )
                         }
                     )

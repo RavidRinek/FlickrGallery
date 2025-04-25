@@ -18,7 +18,7 @@ class RecentPhotosPollingManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    fun enablePolling(enable: Boolean){
+    fun enablePolling(enable: Boolean) {
         if (enable) {
             startPolling()
         } else {
@@ -34,6 +34,7 @@ class RecentPhotosPollingManager @Inject constructor(
 
         val request =
             PeriodicWorkRequestBuilder<RecentPhotosPollingWorker>(15, TimeUnit.MINUTES)
+                .setInitialDelay(15, TimeUnit.MINUTES)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)

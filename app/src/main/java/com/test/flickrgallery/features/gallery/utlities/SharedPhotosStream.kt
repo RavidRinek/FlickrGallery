@@ -11,7 +11,7 @@ class SharedPhotosStream @Inject constructor() {
     private val _newGalleryPhotos = MutableStateFlow<GalleryPhotos?>(null)
     val newGalleryPhotos: StateFlow<GalleryPhotos?> = _newGalleryPhotos
 
-    fun updatePhotos(photos: GalleryPhotos) {
+    fun updatePhotos(photos: GalleryPhotos?) {
         _newGalleryPhotos.value = photos
     }
 }

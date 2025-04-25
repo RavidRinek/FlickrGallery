@@ -2,6 +2,7 @@ package com.test.flickrgallery.features.gallery.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,20 +20,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import coil.size.Size
 import com.test.flickrgallery.R
 import com.test.flickrgallery.features.gallery.domain.models.Photo
 
 @Composable
 fun PhotoSelectedScreen(photo: Photo) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(photo.url)
                 .crossfade(true)
-                .size(coil.size.Size.ORIGINAL)
+                .size(Size.ORIGINAL)
                 .build(),
             contentDescription = "Selected Photo",
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(photo.width.toFloat() / photo.height.toFloat()),
             contentScale = ContentScale.Crop,
             placeholder = painterResource(R.drawable.image_loading_placeholder),
             error = painterResource(R.drawable.image_error_placeholder),

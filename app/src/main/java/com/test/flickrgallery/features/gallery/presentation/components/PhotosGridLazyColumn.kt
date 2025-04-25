@@ -45,9 +45,9 @@ fun PhotoGridLazyColumn(
         columns = GridCells.Fixed(3),
         state = gridState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        contentPadding = PaddingValues(5.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         items(photos) { photo ->
             AsyncImage(

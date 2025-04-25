@@ -18,9 +18,9 @@ class GetRecentPhotosUseCase @Inject constructor(
         ).onSuccess {
             if (it == null || it.stat != "ok" || it.galleryPhotosResponse == null) {
                 return Result.failure(Throwable("Something Went Wrong.."))
-            } else if (it.galleryPhotosResponse.photos.isNullOrEmpty()) {
+            }/* else if (it.galleryPhotosResponse.photos.isNullOrEmpty()) {
                 return Result.failure(Throwable("No Photos Found"))
-            }
+            }*/
         }
         return res.map { it!!.galleryPhotosResponse!!.toDomain() }
     }
