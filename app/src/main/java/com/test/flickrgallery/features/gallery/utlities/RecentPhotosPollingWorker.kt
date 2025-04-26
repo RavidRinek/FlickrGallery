@@ -6,7 +6,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
-import com.test.flickrgallery.features.gallery.domain.usecases.GetRecentPhotosUseCase
+import com.test.flickrgallery.features.gallery.domain.usecases.GetGalleryPhotosUseCase
 import com.test.flickrgallery.utilities.NotificationsBuilder
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -17,13 +17,13 @@ class RecentPhotosPollingWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted private val params: WorkerParameters,
     @Assisted private val galleryPrefs: GalleryPrefs,
-    @Assisted private val getRecentPhotosUseCase: GetRecentPhotosUseCase,
+    @Assisted private val getGalleryPhotosUseCase: GetGalleryPhotosUseCase,
     @Assisted private val sharedPhotosStream: SharedPhotosStream,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         return try {
-            val res = getRecentPhotosUseCase(
+            val res = getGalleryPhotosUseCase(
                 page = 1,
                 query = galleryPrefs.getString(GalleryPrefs.K_LAST_SEARCH_TERM)
             )
@@ -36,10 +36,10 @@ class RecentPhotosPollingWorker @AssistedInject constructor(
                     galleryPrefs.putStringAsync(GalleryPrefs.K_LAST_PHOTO_ID, latestPhotoId)
                     NotificationsBuilder.showNewPhotosNotification(
                         context = context,
-                        channelId = "flickr_updates",
-                        channelName = "Flickr Pictures Updates",
-                        contentTitle = "New Flickr Pictures!",
-                        contentText = "You have new pictures in Flickr client."
+                        channelId = CHANNEL_ID,
+                        channelName = CHANNEL_NAME,
+                        contentTitle = CONTENT_TITLE,
+                        contentText = CONTENT_TEXT
                     )
                 }
             }
@@ -64,5 +64,9 @@ class RecentPhotosPollingWorker @AssistedInject constructor(
 
     companion object {
         const val TAG = "RecentPhotosPollingWorker"
+        const val CHANNEL_ID = "flickr_updates"
+        const val CHANNEL_NAME = "Flickr Pictures Updates"
+        const val CONTENT_TITLE = "New Flickr Pictures!"
+        const val CONTENT_TEXT = "You have new pictures in Flickr client."
     }
 }

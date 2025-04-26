@@ -4,5 +4,5 @@ import com.test.flickrgallery.features.gallery.data.models.GetPhotosResponse
 
 interface GalleryRepository {
 
-    suspend fun getRecentPhotos(page: Int, query: String): Result<GetPhotosResponse?>
+    suspend fun getGalleryPhotos(page: Int, query: String): Result<GetPhotosResponse?>
 }

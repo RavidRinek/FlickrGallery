@@ -5,14 +5,14 @@ import com.test.flickrgallery.features.gallery.domain.models.GalleryPhotos
 import com.test.flickrgallery.features.gallery.domain.models.toDomain
 import javax.inject.Inject
 
-class GetRecentPhotosUseCase @Inject constructor(
+class GetGalleryPhotosUseCase @Inject constructor(
     private val galleryRepository: GalleryRepository,
 ) {
     suspend operator fun invoke(
         page: Int,
         query: String
     ): Result<GalleryPhotos> {
-        val res = galleryRepository.getRecentPhotos(
+        val res = galleryRepository.getGalleryPhotos(
             page = page,
             query = query
         ).onSuccess {

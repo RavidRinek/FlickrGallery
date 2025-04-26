@@ -6,7 +6,7 @@ import com.test.flickrgallery.features.gallery.data.models.PhotoResponse
 
 class MockGalleryRepositoryImpl : GalleryRepository {
 
-    override suspend fun getRecentPhotos(page: Int, query: String): Result<GetPhotosResponse?> {
+    override suspend fun getGalleryPhotos(page: Int, query: String): Result<GetPhotosResponse?> {
 //        return Result.failure(Throwable("XXX"))
         return Result.success(
             GetPhotosResponse(

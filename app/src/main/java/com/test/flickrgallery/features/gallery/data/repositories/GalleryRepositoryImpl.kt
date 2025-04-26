@@ -11,7 +11,7 @@ class GalleryRepositoryImpl @Inject constructor(
     private val apiDataSource: GalleryRemoteDataSource,
 ) : GalleryRepository {
 
-    override suspend fun getRecentPhotos(page: Int, query: String): Result<GetPhotosResponse?> =
+    override suspend fun getGalleryPhotos(page: Int, query: String): Result<GetPhotosResponse?> =
         withContext(dispatcher) {
             return@withContext apiDataSource.getRecentPhotos(
                 page = page,

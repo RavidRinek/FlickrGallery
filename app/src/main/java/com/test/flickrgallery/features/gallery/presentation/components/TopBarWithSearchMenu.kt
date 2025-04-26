@@ -75,7 +75,6 @@ fun TopBarWithSearchMenu(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(6.dp)),
-//                tint = MaterialTheme.colorScheme.primary
             )
 
             Spacer(modifier = Modifier.width(12.dp))

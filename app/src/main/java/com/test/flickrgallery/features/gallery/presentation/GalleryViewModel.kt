@@ -3,7 +3,7 @@ package com.test.flickrgallery.features.gallery.presentation
 import androidx.lifecycle.ViewModel
 import com.test.flickrgallery.features.gallery.domain.models.GalleryPhotos
 import com.test.flickrgallery.features.gallery.domain.models.Photo
-import com.test.flickrgallery.features.gallery.domain.usecases.GetRecentPhotosUseCase
+import com.test.flickrgallery.features.gallery.domain.usecases.GetGalleryPhotosUseCase
 import com.test.flickrgallery.features.gallery.utlities.GalleryPrefs
 import com.test.flickrgallery.features.gallery.utlities.RecentPhotosPollingManager
 import com.test.flickrgallery.features.gallery.utlities.SharedPhotosStream
@@ -26,7 +26,7 @@ import javax.inject.Inject
 class GalleryViewModel @Inject constructor(
     private val recentPhotosPollingManager: RecentPhotosPollingManager,
     private val galleryPrefs: GalleryPrefs,
-    private val getRecentPhotosUseCase: GetRecentPhotosUseCase,
+    private val getGalleryPhotosUseCase: GetGalleryPhotosUseCase,
     private val sharedPhotosStream: SharedPhotosStream
 ) : ViewModel(), ContainerHost<GalleryViewModel.State, GalleryViewModel.SideEffect> {
 
@@ -35,7 +35,6 @@ class GalleryViewModel @Inject constructor(
     private var currentPage = 1
     private var isLoading = false
     private var hasMoreData = true
-    private var allowNotifyOfReachedEndList = true
 
     init {
         val pollingEnabled = galleryPrefs.getBoolean(GalleryPrefs.K_AUTO_POLL_ENABLED)
@@ -105,17 +104,11 @@ class GalleryViewModel @Inject constructor(
                 (state.uiState as? UiStates.Data)?.galleryPhotos?.photos ?: return@intent
             val thresholdReached = lastVisible >= currentPhotos.size - 5
 
-            if (!thresholdReached || isLoading || !hasMoreData) {
-                if (allowNotifyOfReachedEndList && thresholdReached && !hasMoreData) {
-                    allowNotifyOfReachedEndList = false
-                    postSideEffect(SideEffect.ShowToast("You've reached the end of the list"))
-                }
-                return@intent
-            }
+            if (!thresholdReached || isLoading || !hasMoreData) return@intent
 
             isLoading = true
             reduce { state.copy(appendingLoading = true) }
-            getRecentPhotosUseCase(currentPage, _searchQuery.value)
+            getGalleryPhotosUseCase(currentPage, _searchQuery.value)
                 .onSuccess {
                     val updatedPhotos = currentPhotos + it.photos
                     val updatedGalleryPhotos = it.copy(photos = updatedPhotos)
@@ -133,7 +126,6 @@ class GalleryViewModel @Inject constructor(
         intent {
             hasMoreData = newPhotosSize >= updatedGalleryPhotos.perpage
             isLoading = false
-            allowNotifyOfReachedEndList = true
             updatedGalleryPhotos.photos.firstOrNull()?.id?.let { id ->
                 galleryPrefs.putString(GalleryPrefs.K_LAST_PHOTO_ID, id)
             }
@@ -175,7 +167,7 @@ class GalleryViewModel @Inject constructor(
                                 appendingLoading = true
                             )
                         }
-                        val result = getRecentPhotosUseCase(1, query)
+                        val result = getGalleryPhotosUseCase(1, query)
                         emit(result)
                     }
                 }
